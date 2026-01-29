@@ -164,6 +164,10 @@ def display_scatter_plot_of_two_numeric_features(df, num_columns):
 
 
 def categorical_variable_analysis(df, cat_columns):
+    if not cat_columns:
+        st.info("The dataset does not have any categorical columns")
+        return
+
     categorical_feature = st.selectbox(label="Select Categorical Feature", options=cat_columns)
     categorical_plot_type = st.selectbox(label="Select Plot Type", options=["Bar Chart", "Pie Chart", "Stacked Bar Chart", "Frequency Count"])
     
@@ -189,6 +193,10 @@ def categorical_variable_analysis(df, cat_columns):
 
 
 def feature_exploration_numerical_variables(df, num_columns):
+    if not num_columns:
+        st.info("The dataset does not have any numerical columns")
+        return
+
     selected_features = st.multiselect("Select Features for Exploration:", num_columns, default=num_columns[:2], key="feature_exploration")
 
     if len(selected_features) < 2:
@@ -214,15 +222,26 @@ def feature_exploration_numerical_variables(df, num_columns):
 
 
 def categorical_numerical_variable_analysis(df, cat_columns, num_columns):
+    if not cat_columns:
+        st.info("The dataset does not have any categorical columns")
+        return
+    if not num_columns:
+        st.info("The dataset does not have any numerical columns")
+        return
+
     categorical_feature_1 = st.selectbox(label="Categorical Feature", options=cat_columns)        
     numerical_feature_1 = st.selectbox(label="Numerical Feature", options=num_columns)
 
-    # Group by the selected categorical column and calculate the mean of the numerical column
-    group_data = df.groupby(categorical_feature_1)[numerical_feature_1].mean().reset_index()
+    if categorical_feature_1 and numerical_feature_1:
+        # Group by the selected categorical column and calculate the mean of the numerical column
+        try:
+            group_data = df.groupby(categorical_feature_1)[numerical_feature_1].mean().reset_index()
 
-    st.subheader("Relationship between Categorical and Numerical Variables")
-    st.write(f"Mean {numerical_feature_1} by {categorical_feature_1}")
-    
-    # Create a bar chart
-    fig = px.bar(group_data, x=categorical_feature_1, y=numerical_feature_1, title=f"{numerical_feature_1} by {categorical_feature_1}")
-    st.plotly_chart(fig, use_container_width=True)
+            st.subheader("Relationship between Categorical and Numerical Variables")
+            st.write(f"Mean {numerical_feature_1} by {categorical_feature_1}")
+            
+            # Create a bar chart
+            fig = px.bar(group_data, x=categorical_feature_1, y=numerical_feature_1, title=f"{numerical_feature_1} by {categorical_feature_1}")
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error calculating stats: {e}")
