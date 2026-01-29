@@ -25,27 +25,39 @@ if 'file_hash' not in st.session_state:
     st.session_state.file_hash = None
 
 # Upload file
-file = st.file_uploader("Upload CSV File", type=["csv"], key="csv_uploader")
+file = st.file_uploader("Upload CSV or Excel File", type=["csv", "xlsx", "xls"], key="data_uploader")
 
 def load_data(file):
     """Loads data from the uploaded file."""
-    encodings = ['utf-8', 'latin1', 'ISO-8859-1', 'cp1252']
-    
-    for encoding in encodings:
-        try:
-            file.seek(0)
-            df = pd.read_csv(file, encoding=encoding)
-            if df.empty:
-                st.error("Uploaded file is empty")
-                return None
-            return df
-        except UnicodeDecodeError:
-            continue
-        except Exception as e:
-            st.error(f"Error loading file: {str(e)}")
+    try:
+        if file.name.endswith('.csv'):
+            encodings = ['utf-8', 'latin1', 'ISO-8859-1', 'cp1252']
+            for encoding in encodings:
+                try:
+                    file.seek(0)
+                    df = pd.read_csv(file, encoding=encoding)
+                    if not df.empty:
+                        return df
+                except UnicodeDecodeError:
+                    continue
+            st.error("Failed to decode CSV file. Please ensure it is valid with UTF-8 or Latin-1 encoding.")
             return None
             
-    st.error("Failed to decode file. Please ensure it is a valid CSV with UTF-8 or Latin-1 encoding.")
+        elif file.name.endswith(('.xlsx', '.xls')):
+            try:
+                df = pd.read_excel(file)
+                if df.empty:
+                    st.error("Uploaded file is empty")
+                    return None
+                return df
+            except Exception as e:
+                st.error(f"Error reading Excel file: {e}")
+                return None
+                
+    except Exception as e:
+        st.error(f"Error loading file: {str(e)}")
+        return None
+    
     return None
 
 def save_to_history(df):
@@ -729,7 +741,7 @@ def main():
         except Exception as e:
             st.sidebar.error(f"Code generation failed: {e}")
     else:
-        st.info("Upload a CSV file to get started.")
+        st.info("Upload a CSV or Excel file to get started.")
 
 if __name__ == "__main__":
     main()
