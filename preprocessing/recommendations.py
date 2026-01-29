@@ -3,7 +3,8 @@ import numpy as np
 
 def generate_recommendations(df):
     """
-    Generates simple text-based recommendations for data preprocessing.
+    Generates structured, user-friendly recommendations for data preprocessing.
+    Returns a list of dictionaries with keys: category, column, severity, message, suggestion.
     """
     recommendations = []
     
@@ -14,12 +15,21 @@ def generate_recommendations(df):
     missing_pct = df.isnull().mean() * 100
     for col, pct in missing_pct.items():
         if pct > 0:
-            if pct < 5:
-                recommendations.append(f"Column '{col}' has {pct:.1f}% missing values. Consider dropping rows.")
-            elif pct < 50:
-                recommendations.append(f"Column '{col}' has {pct:.1f}% missing values. Consider imputing (mean/median/mode).")
+            rec = {
+                "category": "Missing Data",
+                "column": col,
+                "value": f"{pct:.1f}%",
+                "severity": "High" if pct > 50 else "Medium",
+                "message": f"Column '{col}' is missing {pct:.1f}% of its data.",
+                "suggestion": "Drop column" if pct > 50 else "Impute (fill) values" if pct > 5 else "Drop rows"
+            }
+            if pct > 50:
+                rec["explanation"] = "More than half the data is missing. Keeping this column might introduce noise."
+            elif pct > 5:
+                rec["explanation"] = "A significant portion is missing. Filling gaps (imputation) allows you to keep the data."
             else:
-                recommendations.append(f"Column '{col}' has {pct:.1f}% missing values. Consider dropping the column.")
+                rec["explanation"] = "Only a few rows are missing. Removing them is usually safe."
+            recommendations.append(rec)
 
     # 2. Skewness (Numeric)
     numeric_cols = df.select_dtypes(include=[np.number]).columns
@@ -27,7 +37,15 @@ def generate_recommendations(df):
         skewness = df[numeric_cols].skew(numeric_only=True)
         for col, skew in skewness.items():
             if abs(skew) > 1.0:
-                recommendations.append(f"Column '{col}' is highly skewed ({skew:.2f}). Consider log or box-cox transformation.")
+                recommendations.append({
+                    "category": "Distribution",
+                    "column": col,
+                    "value": f"{skew:.2f} skew",
+                    "severity": "Medium",
+                    "message": f"Column '{col}' is skewed ({skew:.2f}).",
+                    "suggestion": "Apply Log/Box-Cox Transform",
+                    "explanation": "The data is not symmetrical. Transformations can make it more 'normal' for models."
+                })
 
     # 3. Outliers (IQR)
     for col in numeric_cols:
@@ -40,7 +58,15 @@ def generate_recommendations(df):
         if outliers > 0:
             pct_outliers = (outliers / len(df)) * 100
             if pct_outliers > 1: # Only report if > 1%
-                 recommendations.append(f"Column '{col}' has {outliers} outliers ({pct_outliers:.1f}%). Consider handling them.")
+                 recommendations.append({
+                    "category": "Outliers",
+                    "column": col,
+                    "value": f"{pct_outliers:.1f}%",
+                    "severity": "High" if pct_outliers > 10 else "Medium",
+                    "message": f"Column '{col}' has {outliers} outliers ({pct_outliers:.1f}%).",
+                    "suggestion": "Handle Outliers (Clip/Remove)",
+                    "explanation": "Extreme values can distort analysis and models."
+                })
 
     # 4. High Correlation
     if len(numeric_cols) > 1:
@@ -48,18 +74,42 @@ def generate_recommendations(df):
         upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
         to_drop = [column for column in upper.columns if any(upper[column] > 0.9)]
         for col in to_drop:
-             recommendations.append(f"Column '{col}' is highly correlated with other features (>0.9). Consider removing it to reduce multicollinearity.")
+             recommendations.append({
+                "category": "Correlation",
+                "column": col,
+                "value": "> 0.9",
+                "severity": "Low",
+                "message": f"Column '{col}' is highly correlated with others.",
+                "suggestion": "Remove Feature",
+                "explanation": "This information is redundant as it's already captured by other columns."
+            })
 
     # 5. Categorical High Cardinality
     cat_cols = df.select_dtypes(include=['object', 'category']).columns
     for col in cat_cols:
         unique_count = df[col].nunique()
         if unique_count > 50:
-             recommendations.append(f"Column '{col}' has high cardinality ({unique_count} unique values). Consider frequency encoding or reduction.")
+             recommendations.append({
+                "category": "Cardinality",
+                "column": col,
+                "value": f"{unique_count} unique",
+                "severity": "Medium",
+                "message": f"Column '{col}' has many unique values ({unique_count}).",
+                "suggestion": "Frequency Encoding / Top-N",
+                "explanation": "Too many categories can confuse models. Try grouping rare ones."
+            })
     
     # 6. Constant Columns
     for col in df.columns:
         if df[col].nunique() <= 1:
-             recommendations.append(f"Column '{col}' has only 1 unique value. Consider dropping it.")
+             recommendations.append({
+                "category": "Redundant",
+                "column": col,
+                "value": "Constant",
+                "severity": "High",
+                "message": f"Column '{col}' has only 1 unique value.",
+                "suggestion": "Drop Column",
+                "explanation": "This column offers no information since it's the same for every row."
+            })
 
     return recommendations

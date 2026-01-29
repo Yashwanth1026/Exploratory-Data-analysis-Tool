@@ -697,7 +697,15 @@ def main():
             if recs:
                 st.sidebar.write(f"Found {len(recs)} suggestions:")
                 for r in recs:
-                    st.sidebar.info(f"• {r}")
+                    # Determine icon based on severity
+                    sev = r.get('severity', 'Low')
+                    icon = "🔴" if sev == "High" else "🟠" if sev == "Medium" else "🟡"
+                    
+                    # Create an expander for each recommendation
+                    with st.sidebar.expander(f"{icon} {r['category']}: {r['column']}"):
+                        st.markdown(f"**Issue:** {r['message']}")
+                        st.markdown(f"**Why it matters:**\n{r['explanation']}")
+                        st.info(f"💡 **Suggestion:** {r['suggestion']}")
             else:
                 st.sidebar.success("✅ No major issues found. Data looks good!")
         except Exception as e:
