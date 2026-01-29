@@ -462,7 +462,7 @@ def main():
             "📋 Overview", "🔍 Missing Data", "🏷️ Data Types", "📊 Stats & Visuals",
             "🔎 Search", "📈 Feature Dist.", "🎯 Scatter Plot", "📊 Categorical Analysis",
             "🔬 Feature Exploration", "🔄 Cat vs Num", "📈 PCA Analysis",
-            "🆚 Compare Data"
+            "🧪 Model Sandbox", "🆚 Compare Data"
         ])
 
         with tabs[0]:
@@ -499,6 +499,140 @@ def main():
             show_pca_visualization()
 
         with tabs[11]:
+            st.subheader("🧪 Model Sandbox")
+            st.caption("Train multiple models and compare their performance to find the best fit.")
+
+            ms_col1, ms_col2 = st.columns([1, 2])
+
+            with ms_col1:
+                st.info("""
+                **Available Models:**
+                - **Logistic Regression:** Simple, interpretable linear classification.
+                - **Random Forest:** Robust ensemble method, handles non-linearities well.
+                - **Decision Tree:** Simple tree-based model, easy to visualize.
+                - **Gradient Boosting:** High-performance ensemble method (e.g., XGBoost style).
+                - **SVC:** Support Vector Classifier, effective in high dimensions.
+                - **KNN:** K-Nearest Neighbors, instance-based learning.
+                - **Linear/Ridge/Lasso:** Classic regression models.
+                """)
+
+                st.write("### ⚙️ Configuration")
+                target_options = [c for c in current_df.columns]
+                target_col = st.selectbox("Target Column", target_options, key="sandbox_target_main")
+                test_size = st.slider("Test Size", 0.1, 0.5, 0.2, key="sandbox_test_size_main")
+                
+                train_btn = st.button("🚀 Train Models", key="sandbox_train_btn_main", type="primary")
+
+                if train_btn and target_col:
+                    with st.spinner("Training models... Please wait..."):
+                        try:
+                            results = pipeline.model_sandbox.train_and_evaluate(current_df, target_col, test_size=test_size)
+                            st.session_state.sandbox_results = results
+                            st.session_state.trained_target = target_col
+                        except Exception as e:
+                            st.error(f"Error in model sandbox: {e}")
+
+            with ms_col2:
+                if 'sandbox_results' in st.session_state and st.session_state.sandbox_results:
+                    results = st.session_state.sandbox_results
+                    metrics = results.get("metrics", {})
+                    best_model = results.get("best_model", "Unknown")
+                    best_score = results.get("best_model_score", 0)
+                    problem_type = results.get("problem_type", "Unknown")
+                    
+                    st.write("### 📊 Performance Metrics")
+                    st.success(f"🏆 **Best Model:** {best_model} (Score: {best_score:.4f})")
+
+                    if metrics:
+                        model_names = list(results.get("models", {}).keys())
+                        data = []
+                        
+                        for name in model_names:
+                            row = {"Model": name}
+                            if problem_type == "classification":
+                                row["Accuracy"] = metrics.get(f"{name}_accuracy", 0)
+                                row["F1 Score"] = metrics.get(f"{name}_f1_macro", 0)
+                            else:
+                                row["R2 Score"] = metrics.get(f"{name}_r2", 0)
+                                row["MSE"] = metrics.get(f"{name}_mse", 0)
+                            data.append(row)
+                        
+                        metrics_df = pd.DataFrame(data)
+                        st.dataframe(metrics_df, use_container_width=True, hide_index=True)
+
+                    st.markdown("---")
+                    st.write("### 🔮 Make Predictions")
+                    
+                    feature_names = results.get("feature_names", [])
+                    models = results.get("models", {})
+                    
+                    if not feature_names:
+                        st.warning("No features found.")
+                    else:
+                        model_options = list(models.keys())
+                        default_idx = model_options.index(best_model) if best_model in model_options else 0
+                        selected_model_name = st.selectbox("Select Model for Prediction", model_options, index=default_idx, key="pred_model_select_main")
+                        selected_model = models[selected_model_name]
+
+                        pred_mode = st.radio("Prediction Mode", ["Manual Input", "Upload File"], key="pred_mode_radio_main", horizontal=True)
+                        
+                        input_data = None
+                        
+                        if pred_mode == "Manual Input":
+                            with st.form("prediction_form_main"):
+                                st.write("Enter values for features:")
+                                input_vals = {}
+                                input_cols = st.columns(3)
+                                for i, feature in enumerate(feature_names):
+                                    default_val = 0.0
+                                    if feature in current_df.columns and pd.api.types.is_numeric_dtype(current_df[feature]):
+                                         default_val = float(current_df[feature].mean())
+                                    
+                                    with input_cols[i % 3]:
+                                        input_vals[feature] = st.number_input(f"{feature}", value=default_val, key=f"input_{feature}_main")
+                                
+                                if st.form_submit_button("Predict"):
+                                    input_data = pd.DataFrame([input_vals])
+                                
+                        else:
+                            pred_file = st.file_uploader("Upload CSV/Excel for Prediction", type=["csv", "xlsx", "xls"], key="pred_file_uploader_main")
+                            if pred_file:
+                                input_df = load_data(pred_file)
+                                if input_df is not None:
+                                    missing_cols = [col for col in feature_names if col not in input_df.columns]
+                                    if missing_cols:
+                                        st.error(f"Uploaded file is missing columns: {', '.join(missing_cols)}")
+                                    else:
+                                        input_data = input_df[feature_names]
+                                        if st.button("Run Prediction on File", key="predict_file_btn_main"):
+                                            pass 
+
+                        if input_data is not None:
+                            try:
+                                predictions = selected_model.predict(input_data)
+                                st.success("✅ Prediction Complete")
+                                
+                                if len(predictions) == 1:
+                                    st.metric(label="Predicted Result", value=str(predictions[0]))
+                                else:
+                                    res_df = input_data.copy()
+                                    res_df[f"Prediction"] = predictions
+                                    st.dataframe(res_df)
+                                    
+                                    csv = res_df.to_csv(index=False).encode('utf-8')
+                                    st.download_button(
+                                        label="Download Predictions",
+                                        data=csv,
+                                        file_name="predictions.csv",
+                                        mime="text/csv",
+                                        key="download_pred_btn_main"
+                                    )
+                            except Exception as e:
+                                st.error(f"Prediction Error: {e}")
+                else:
+                    st.info("👈 Configure and train models using the panel on the left to see results here.")
+
+        with tabs[12]:
             st.subheader("🆚 Original vs. Processed Comparison")
             if st.session_state.original_df is not None:
                 orig_df = st.session_state.original_df
@@ -619,6 +753,45 @@ def main():
                     st.session_state.processed_df = current_df
                     st.rerun()
 
+        with st.sidebar.expander("📉 Outlier Handling"):
+            st.caption("Detect and handle outliers in numerical columns.")
+            num_columns_current, _ = pipeline.utils.categorical_numerical(current_df)
+            col = st.selectbox("Select Column", num_columns_current, key="outlier_col_select")
+            
+            if col:
+                method = st.radio("Detection Method", ["IQR (Interquartile Range)", "Z-Score"], key="outlier_method_radio")
+                
+                if method.startswith("IQR"):
+                    outliers_list = pipeline.outliers.detect_outliers_iqr(current_df, col)
+                else:
+                    outliers_list = pipeline.outliers.detect_outliers_zscore(current_df, col)
+                
+                st.write(f"Found **{len(outliers_list)}** outliers.")
+                
+                if outliers_list:
+                    action = st.radio("Action", ["Remove Rows", "Cap Values (Winsorize)", "Replace with Median", "Replace with Mean"], key="outlier_action_radio")
+                    
+                    if st.button("Apply Outlier Handling", key="outlier_apply_btn"):
+                        try:
+                            if action == "Remove Rows":
+                                current_df = pipeline.outliers.remove_outliers(current_df, col, outliers_list)
+                                st.success(f"Removed {len(outliers_list)} rows.")
+                            elif action == "Cap Values (Winsorize)":
+                                current_df = pipeline.outliers.transform_outliers(current_df, col, outliers_list, method='cap')
+                                st.success("Capped outlier values.")
+                            elif action == "Replace with Median":
+                                current_df = pipeline.outliers.transform_outliers(current_df, col, outliers_list, method='median')
+                                st.success("Replaced outliers with median.")
+                            elif action == "Replace with Mean":
+                                current_df = pipeline.outliers.transform_outliers(current_df, col, outliers_list, method='mean')
+                                st.success("Replaced outliers with mean.")
+                                
+                            save_to_history(current_df)
+                            st.session_state.processed_df = current_df
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error handling outliers: {e}")
+
         st.sidebar.header("✂️ Row Management")
 
         with st.sidebar.expander("🔍 Global Search"):
@@ -704,133 +877,6 @@ def main():
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error applying drop: {e}")
-
-        st.sidebar.header("🧪 Model Sandbox")
-        with st.sidebar.expander("Model Training & Prediction"):
-            st.caption("Train multiple models and compare their performance to find the best fit.")
-            
-            # Model Descriptions
-            st.info("""
-            **Available Models:**
-            - **Logistic Regression:** Simple, interpretable linear classification.
-            - **Random Forest:** Robust ensemble method, handles non-linearities well.
-            - **Decision Tree:** Simple tree-based model, easy to visualize.
-            - **Gradient Boosting:** High-performance ensemble method (e.g., XGBoost style).
-            - **SVC:** Support Vector Classifier, effective in high dimensions.
-            - **KNN:** K-Nearest Neighbors, instance-based learning.
-            - **Linear/Ridge/Lasso:** Classic regression models.
-            """)
-
-            target_options = [c for c in current_df.columns]
-            target_col = st.selectbox("Target Column", target_options, key="sandbox_target_sidebar")
-            test_size = st.slider("Test Size", 0.1, 0.5, 0.2, key="sandbox_test_size_sidebar")
-            
-            train_btn = st.button("🚀 Train Models", key="sandbox_train_btn_sidebar", type="primary")
-
-            if train_btn and target_col:
-                with st.spinner("Training models... Please wait..."):
-                    try:
-                        results = pipeline.model_sandbox.train_and_evaluate(current_df, target_col, test_size=test_size)
-                        st.session_state.sandbox_results = results
-                        st.session_state.trained_target = target_col
-                    except Exception as e:
-                        st.error(f"Error in model sandbox: {e}")
-
-            # Display Results if available
-            if 'sandbox_results' in st.session_state and st.session_state.sandbox_results:
-                results = st.session_state.sandbox_results
-                metrics = results.get("metrics", {})
-                best_model = results.get("best_model", "Unknown")
-                best_score = results.get("best_model_score", 0)
-                problem_type = results.get("problem_type", "Unknown")
-                
-                st.markdown("---")
-                st.write("### 📊 Performance")
-                
-                st.success(f"🏆 **Best:** {best_model} ({best_score:.4f})")
-
-                if metrics:
-                    model_names = list(results.get("models", {}).keys())
-                    data = []
-                    
-                    for name in model_names:
-                        row = {"Model": name}
-                        if problem_type == "classification":
-                            row["Acc"] = metrics.get(f"{name}_accuracy", 0)
-                            row["F1"] = metrics.get(f"{name}_f1_macro", 0)
-                        else:
-                            row["R2"] = metrics.get(f"{name}_r2", 0)
-                            row["MSE"] = metrics.get(f"{name}_mse", 0)
-                        data.append(row)
-                    
-                    metrics_df = pd.DataFrame(data)
-                    st.dataframe(metrics_df, use_container_width=True, hide_index=True)
-
-                st.markdown("---")
-                st.write("### 🔮 Prediction")
-                
-                feature_names = results.get("feature_names", [])
-                models = results.get("models", {})
-                
-                if not feature_names:
-                    st.warning("No features found.")
-                else:
-                    model_options = list(models.keys())
-                    default_idx = model_options.index(best_model) if best_model in model_options else 0
-                    selected_model_name = st.selectbox("Select Model", model_options, index=default_idx, key="pred_model_select_sidebar")
-                    selected_model = models[selected_model_name]
-
-                    pred_mode = st.radio("Mode", ["Manual", "File"], key="pred_mode_radio_sidebar", horizontal=True)
-                    
-                    input_data = None
-                    
-                    if pred_mode == "Manual":
-                        with st.form("prediction_form"):
-                            input_vals = {}
-                            for feature in feature_names:
-                                default_val = 0.0
-                                if feature in current_df.columns and pd.api.types.is_numeric_dtype(current_df[feature]):
-                                     default_val = float(current_df[feature].mean())
-                                input_vals[feature] = st.number_input(f"{feature}", value=default_val, key=f"input_{feature}_sidebar")
-                            
-                            if st.form_submit_button("Predict"):
-                                input_data = pd.DataFrame([input_vals])
-                            
-                    else:
-                        pred_file = st.file_uploader("Upload File", type=["csv", "xlsx", "xls"], key="pred_file_uploader_sidebar")
-                        if pred_file:
-                            input_df = load_data(pred_file)
-                            if input_df is not None:
-                                missing_cols = [col for col in feature_names if col not in input_df.columns]
-                                if missing_cols:
-                                    st.error(f"Missing: {', '.join(missing_cols)}")
-                                else:
-                                    input_data = input_df[feature_names]
-                                    if st.button("Predict File", key="predict_file_btn_sidebar"):
-                                        pass 
-
-                    if input_data is not None:
-                        try:
-                            predictions = selected_model.predict(input_data)
-                            st.success("✅ Done")
-                            
-                            if len(predictions) == 1:
-                                st.write(f"Result: **{predictions[0]}**")
-                            else:
-                                res_df = input_data.copy()
-                                res_df[f"Prediction"] = predictions
-                                st.dataframe(res_df)
-                                
-                                csv = res_df.to_csv(index=False).encode('utf-8')
-                                st.download_button(
-                                    label="Download",
-                                    data=csv,
-                                    file_name="predictions.csv",
-                                    mime="text/csv",
-                                    key="download_pred_btn_sidebar"
-                                )
-                        except Exception as e:
-                            st.error(f"Error: {e}")
 
         st.sidebar.header("🧠 Recommendations")
         try:
