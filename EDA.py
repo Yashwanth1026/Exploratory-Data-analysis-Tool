@@ -209,10 +209,8 @@ def feature_exploration_numerical_variables(df, num_columns):
         # Correlation Heatmap
         if st.button("Generate Correlation Heatmap"):
             correlation_matrix = df[selected_features].corr()
-            plt.figure(figsize=(10, 6))
-            sns.heatmap(correlation_matrix, annot=True, cmap="coolwarm", linewidths=0.5)
-            plt.title("Correlation Heatmap")
-            st.pyplot(plt)     
+            fig = px.imshow(correlation_matrix, text_auto=True, aspect="auto", title="Correlation Heatmap", color_continuous_scale='RdBu_r')
+            st.plotly_chart(fig, use_container_width=True)
 
 
 def categorical_numerical_variable_analysis(df, cat_columns, num_columns):

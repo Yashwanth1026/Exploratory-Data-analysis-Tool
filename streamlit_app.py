@@ -403,6 +403,14 @@ def main():
             else:
                 st.sidebar.info("No more actions to undo.")
 
+        if st.sidebar.button("🗑️ Reset to Original", key="reset_btn"):
+            if st.session_state.original_df is not None:
+                st.session_state.processed_df = st.session_state.original_df.copy()
+                st.session_state.history = [st.session_state.original_df.copy()]
+                if 'pca_info' in st.session_state:
+                    del st.session_state.pca_info
+                st.rerun()
+
         # Render advanced preprocessing options
         show_advanced_preprocessing(current_df)
 
@@ -425,7 +433,8 @@ def main():
         tabs = st.tabs([
             "📋 Overview", "🔍 Missing Data", "🏷️ Data Types", "📊 Stats & Visuals",
             "🔎 Search", "📈 Feature Dist.", "🎯 Scatter Plot", "📊 Categorical Analysis",
-            "🔬 Feature Exploration", "🔄 Cat vs Num", "📈 PCA Analysis", "🧪 Model Sandbox"
+            "🔬 Feature Exploration", "🔄 Cat vs Num", "📈 PCA Analysis", "🧪 Model Sandbox",
+            "🆚 Compare Data"
         ])
 
         with tabs[0]:
@@ -483,6 +492,59 @@ def main():
                         st.plotly_chart(fig, use_container_width=True)
                 except Exception as e:
                     st.error(f"Error in model sandbox: {e}")
+
+        with tabs[12]:
+            st.subheader("🆚 Original vs. Processed Comparison")
+            if st.session_state.original_df is not None:
+                orig_df = st.session_state.original_df
+                
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.info("Original Data")
+                    st.write(f"**Shape:** {orig_df.shape}")
+                    st.write(f"**Missing Values:** {orig_df.isnull().sum().sum()}")
+                    st.write(f"**Duplicates:** {orig_df.duplicated().sum()}")
+                with c2:
+                    st.success("Processed Data")
+                    st.write(f"**Shape:** {current_df.shape}")
+                    st.write(f"**Missing Values:** {current_df.isnull().sum().sum()}")
+                    st.write(f"**Duplicates:** {current_df.duplicated().sum()}")
+
+                st.markdown("---")
+                st.write("### 📊 Distribution Comparison")
+                
+                # Column comparison
+                common_cols = sorted(list(set(orig_df.columns) & set(current_df.columns)))
+                if common_cols:
+                    comp_col = st.selectbox("Select Column to Compare", common_cols, key="compare_col_select")
+                    
+                    if comp_col in orig_df.columns and comp_col in current_df.columns:
+                        is_num_orig = pd.api.types.is_numeric_dtype(orig_df[comp_col])
+                        is_num_curr = pd.api.types.is_numeric_dtype(current_df[comp_col])
+                        
+                        if is_num_orig and is_num_curr:
+                            import plotly.graph_objects as go
+                            fig = go.Figure()
+                            fig.add_trace(go.Histogram(x=orig_df[comp_col], name='Original', opacity=0.75, marker_color='blue'))
+                            fig.add_trace(go.Histogram(x=current_df[comp_col], name='Processed', opacity=0.75, marker_color='green'))
+                            fig.update_layout(barmode='overlay', title=f"Distribution Comparison: {comp_col}", 
+                                            xaxis_title=comp_col, yaxis_title="Count")
+                            st.plotly_chart(fig, use_container_width=True)
+                            
+                            # Stats comparison table
+                            st.write("**Statistics Comparison**")
+                            desc_orig = orig_df[comp_col].describe()
+                            desc_curr = current_df[comp_col].describe()
+                            comp_df = pd.DataFrame({'Original': desc_orig, 'Processed': desc_curr})
+                            st.dataframe(comp_df)
+                            
+                        else:
+                            st.info(f"Selected column '{comp_col}' is not numeric or has incompatible types for histogram comparison.")
+                            st.write(f"Original Type: {orig_df[comp_col].dtype}, Processed Type: {current_df[comp_col].dtype}")
+                else:
+                    st.warning("No common columns found between original and processed data.")
+            else:
+                st.warning("Original data not available.")
 
         st.sidebar.header("🧹 Basic Preprocessing")
 
@@ -644,6 +706,15 @@ def main():
         st.sidebar.header("⬇️ Export")
         csv_bytes = pipeline.code_export.dataframe_to_csv_bytes(current_df)
         st.sidebar.download_button("Download Cleaned CSV", data=csv_bytes, file_name="cleaned_dataset.csv", mime="text/csv", key="download_csv_btn")
+        
+        # Summary Report
+        report_text = f"Dataset Report\nGenerated on {pd.Timestamp.now()}\n\n"
+        report_text += f"Rows: {current_df.shape[0]}\nColumns: {current_df.shape[1]}\n\n"
+        report_text += "Column Info:\n" + str(current_df.dtypes) + "\n\n"
+        report_text += "Missing Values:\n" + str(current_df.isnull().sum()) + "\n\n"
+        report_text += "Summary Statistics:\n" + str(current_df.describe())
+        st.sidebar.download_button("Download Summary Report", data=report_text, file_name="data_summary.txt", mime="text/plain", key="download_report_btn")
+
         try:
             pipeline_code = pipeline.code_export.generate_sklearn_pipeline_code(current_df)
             st.sidebar.download_button("Download Preprocessing Pipeline Code", data=pipeline_code, file_name="preprocessing_pipeline.py", mime="text/plain", key="download_code_btn")
