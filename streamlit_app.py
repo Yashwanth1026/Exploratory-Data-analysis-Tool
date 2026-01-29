@@ -25,6 +25,7 @@ if 'file_hash' not in st.session_state:
     st.session_state.file_hash = None
 
 # Upload file
+st.caption("Upload your CSV or Excel dataset to begin analysis and preprocessing.")
 file = st.file_uploader("Upload CSV or Excel File", type=["csv", "xlsx", "xls"], key="data_uploader")
 
 def load_data(file):
@@ -117,6 +118,7 @@ def show_advanced_preprocessing(df):
 
     # Data Type Conversion
     with st.sidebar.expander("🔄 Data Type Conversion"):
+        st.caption("Change column types (e.g., text to numbers) to ensure correct analysis.")
         if st.checkbox("Convert Data Types", key="convert_types_check"):
             cols = st.multiselect("Select columns to convert", df.columns.tolist(), key="convert_types_cols")
             target_type = st.selectbox("Target type",
@@ -134,6 +136,7 @@ def show_advanced_preprocessing(df):
     datetime_cols = [col for col in df.columns if pd.api.types.is_datetime64_any_dtype(df[col])]
     if datetime_cols:
         with st.sidebar.expander("📅 Datetime Features"):
+            st.caption("Extract useful info like Year, Month, or Day from date columns.")
             if st.checkbox("Extract Datetime Features", key="datetime_feature_check"):
                 selected_col = st.selectbox("Select datetime column", datetime_cols, key="datetime_col_select")
                 features = st.multiselect("Features to extract",
@@ -153,6 +156,7 @@ def show_advanced_preprocessing(df):
     text_cols = [col for col in df.columns if df[col].dtype == 'object']
     if text_cols:
         with st.sidebar.expander("📝 Text Preprocessing"):
+            st.caption("Clean text data by removing punctuation, converting to lowercase, etc.")
             if st.checkbox("Preprocess Text", key="text_preprocess_check"):
                 selected_col = st.selectbox("Select text column", text_cols, key="text_col_select")
                 steps = st.multiselect("Preprocessing steps",
@@ -171,6 +175,7 @@ def show_advanced_preprocessing(df):
 
     # Advanced Imputation
     with st.sidebar.expander("🔧 Advanced Imputation"):
+        st.caption("Fill missing values using smart methods like KNN (nearest neighbors) or Regression.")
         imputation_method = st.selectbox("Imputation Method",
                                        ["KNN", "Interpolation", "Regression"],
                                        key="imputation_method")
@@ -178,6 +183,7 @@ def show_advanced_preprocessing(df):
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
 
         if imputation_method == "KNN":
+            st.caption("Fills missing values using the average of similar rows (neighbors).")
             knn_cols = st.multiselect("Select columns for KNN imputation", numeric_cols, key="knn_cols")
             n_neighbors = st.slider("Number of neighbors", 1, 20, 5, key="knn_neighbors")
             if st.button("Apply KNN Imputation", key="knn_impute_btn"):
@@ -189,6 +195,7 @@ def show_advanced_preprocessing(df):
                     st.rerun()
 
         elif imputation_method == "Interpolation":
+            st.caption("Estimates missing values based on surrounding data points (good for time-series).")
             interp_cols = st.multiselect("Select columns for interpolation", numeric_cols, key="interp_cols")
             interp_method = st.selectbox("Interpolation method",
                                        ['linear', 'polynomial', 'spline'],
@@ -202,6 +209,7 @@ def show_advanced_preprocessing(df):
                     st.rerun()
 
         elif imputation_method == "Regression":
+            st.caption("Predicts missing values using other columns as predictors.")
             target_col = st.selectbox("Target column for regression imputation", numeric_cols, key="reg_target_col")
             feature_cols = [col for col in numeric_cols if col != target_col]
             if st.button("Apply Regression Imputation", key="regression_impute_btn"):
@@ -216,11 +224,13 @@ def show_advanced_preprocessing(df):
     cat_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
     if cat_columns:
         with st.sidebar.expander("🎯 Advanced Encoding"):
+            st.caption("Convert categorical text into numbers using statistical relationships.")
             encoding_method = st.selectbox("Encoding Method",
                                          ["Target Encoding", "Frequency Encoding"],
                                          key="encoding_method")
 
             if encoding_method == "Target Encoding":
+                st.caption("Replaces categories with the average value of a target column.")
                 target_col = st.selectbox("Target column", df.columns.tolist(), key="target_enc_target")
                 cat_cols_for_encoding = st.multiselect("Categorical columns to encode", cat_columns, key="target_enc_cols")
                 smoothing = st.slider("Smoothing factor", 0.1, 10.0, 1.0, key="smoothing_factor")
@@ -233,6 +243,7 @@ def show_advanced_preprocessing(df):
                         st.rerun()
 
             elif encoding_method == "Frequency Encoding":
+                st.caption("Replaces categories with how often they appear in the data.")
                 freq_cols = st.multiselect("Select columns for frequency encoding", cat_columns, key="freq_enc_cols")
                 if st.button("Apply Frequency Encoding", key="freq_encode_btn"):
                     if validate_columns(df, freq_cols, "frequency encoding"):
@@ -244,6 +255,7 @@ def show_advanced_preprocessing(df):
 
     # Feature Selection
     with st.sidebar.expander("🎛️ Feature Selection"):
+        st.caption("Select the most important features to improve model performance and reduce complexity.")
         selection_method = st.selectbox("Selection Method",
                                       ['variance', 'correlation', 'univariate'],
                                       key="selection_method")
@@ -269,6 +281,7 @@ def show_advanced_preprocessing(df):
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     if numeric_cols:
         with st.sidebar.expander("🔄 Feature Transformation"):
+            st.caption("Apply mathematical transformations to improve data distribution (e.g., Log for skewed data).")
             transform_method = st.selectbox("Transformation Method",
                                           ['log', 'sqrt', 'square', 'reciprocal',
                                            'boxcox', 'yeojohnson'],
@@ -284,6 +297,7 @@ def show_advanced_preprocessing(df):
 
         # Feature Binning
         with st.sidebar.expander("📊 Feature Binning"):
+            st.caption("Group continuous values into discrete bins or intervals.")
             bin_cols = st.multiselect("Select columns to bin", numeric_cols, key="bin_cols")
             bin_method = st.selectbox("Binning method", ['equal_width', 'equal_freq'], key="bin_method")
             n_bins = st.slider("Number of bins", 2, 20, 5, key="n_bins")
@@ -298,6 +312,7 @@ def show_advanced_preprocessing(df):
     # Principal Component Analysis
     if len(df.select_dtypes(include=[np.number]).columns) > 1:
         with st.sidebar.expander("📈 Principal Component Analysis"):
+            st.caption("Reduce dimensionality while retaining the most important information (variance).")
             pca_option = st.radio("PCA Option",
                                 ["Fixed Components", "Variance Threshold"],
                                 key="pca_option")
@@ -326,6 +341,7 @@ def show_advanced_preprocessing(df):
 
     # Duplicate Handling
     with st.sidebar.expander("🔄 Duplicate Handling"):
+        st.caption("Identify and remove duplicate rows to ensure data integrity.")
         dup_info = pipeline.duplicates.detect_duplicates(df)
         st.write(f"Found {dup_info['total_duplicates']} duplicate rows")
 
@@ -560,60 +576,66 @@ def main():
 
         st.sidebar.header("🧹 Basic Preprocessing")
 
-        if st.sidebar.checkbox("Remove Columns", key="remove_cols_check"):
-            cols = st.sidebar.multiselect("Columns to Remove", current_df.columns.tolist(), key="remove_cols_select")
-            if cols and st.sidebar.button("Remove Selected Columns", key="remove_cols_btn"):
+        with st.sidebar.expander("Remove Columns"):
+            st.caption("Delete unwanted columns from your dataset.")
+            cols = st.multiselect("Columns to Remove", current_df.columns.tolist(), key="remove_cols_select")
+            if cols and st.button("Remove Selected Columns", key="remove_cols_btn"):
                 if validate_columns(current_df, cols, "remove columns"):
                     current_df = pipeline.utils.remove_selected_columns(current_df, cols)
                     save_to_history(current_df)
                     st.session_state.processed_df = current_df
                     st.rerun()
 
-        if st.sidebar.checkbox("Remove Rows with NA", key="remove_na_check"):
-            cols = st.sidebar.multiselect("Select Columns for NA Removal",
+        with st.sidebar.expander("Remove Rows with NA"):
+            st.caption("Remove rows that contain missing values in selected columns.")
+            cols = st.multiselect("Select Columns for NA Removal",
                                         current_df.columns.tolist(), key="remove_na_cols")
-            if cols and st.sidebar.button("Remove NA Rows", key="remove_na_btn"):
+            if cols and st.button("Remove NA Rows", key="remove_na_btn"):
                 if validate_columns(current_df, cols, "remove NA rows"):
                     current_df = pipeline.missing_values.remove_rows_with_missing_data(current_df, cols)
                     save_to_history(current_df)
                     st.session_state.processed_df = current_df
                     st.rerun()
 
-        if st.sidebar.checkbox("Fill Missing Values", key="fill_missing_check"):
-            cols = st.sidebar.multiselect("Select Columns to Fill",
+        with st.sidebar.expander("Fill Missing Values"):
+            st.caption("Replace missing values with Mean, Median, or Mode.")
+            cols = st.multiselect("Select Columns to Fill",
                                         current_df.columns.tolist(), key="fill_missing_cols")
-            method = st.sidebar.radio("Method", ["mean", "median", "mode"], key="fill_method")
-            if cols and st.sidebar.button("Fill Missing", key="fill_missing_btn"):
+            method = st.radio("Method", ["mean", "median", "mode"], key="fill_method")
+            if cols and st.button("Fill Missing", key="fill_missing_btn"):
                 if validate_columns(current_df, cols, "fill missing values"):
                     current_df = pipeline.missing_values.fill_missing_data(current_df, cols, method)
                     save_to_history(current_df)
                     st.session_state.processed_df = current_df
                     st.rerun()
 
-        if st.sidebar.checkbox("Label Encoding", key="label_enc_check"):
+        with st.sidebar.expander("Label Encoding"):
+            st.caption("Convert categorical text into numbers (0, 1, 2...) for machine learning.")
             _, cat_columns_current = pipeline.utils.categorical_numerical(current_df)
-            cols = st.sidebar.multiselect("Categorical Columns for Label Encoding", cat_columns_current, key="label_enc_cols")
-            if cols and st.sidebar.button("Apply Label Encoding", key="label_enc_btn"):
+            cols = st.multiselect("Categorical Columns for Label Encoding", cat_columns_current, key="label_enc_cols")
+            if cols and st.button("Apply Label Encoding", key="label_enc_btn"):
                 if validate_columns(current_df, cols, "label encoding"):
                     current_df = pipeline.encoding.label_encode(current_df, cols)
                     save_to_history(current_df)
                     st.session_state.processed_df = current_df
                     st.rerun()
 
-        if st.sidebar.checkbox("One-Hot Encoding", key="onehot_check"):
+        with st.sidebar.expander("One-Hot Encoding"):
+            st.caption("Create new binary columns (0 or 1) for each category value.")
             _, cat_columns_current = pipeline.utils.categorical_numerical(current_df)
-            cols = st.sidebar.multiselect("Categorical Columns for One-Hot", cat_columns_current, key="onehot_cols")
-            if cols and st.sidebar.button("Apply One-Hot Encoding", key="onehot_btn"):
+            cols = st.multiselect("Categorical Columns for One-Hot", cat_columns_current, key="onehot_cols")
+            if cols and st.button("Apply One-Hot Encoding", key="onehot_btn"):
                 if validate_columns(current_df, cols, "one-hot encoding"):
                     current_df = pipeline.encoding.one_hot_encode(current_df, cols)
                     save_to_history(current_df)
                     st.session_state.processed_df = current_df
                     st.rerun()
 
-        if st.sidebar.checkbox("Standard Scaling", key="std_scale_check"):
+        with st.sidebar.expander("Standard Scaling"):
+            st.caption("Scale numerical features to have mean=0 and variance=1.")
             num_columns_current, _ = pipeline.utils.categorical_numerical(current_df)
-            cols = st.sidebar.multiselect("Numerical Columns to Scale (Standard)", num_columns_current, key="std_scale_cols")
-            if cols and st.sidebar.button("Apply Standard Scaling", key="std_scale_btn"):
+            cols = st.multiselect("Numerical Columns to Scale (Standard)", num_columns_current, key="std_scale_cols")
+            if cols and st.button("Apply Standard Scaling", key="std_scale_btn"):
                 if validate_columns(current_df, cols, "standard scaling"):
                     current_df = pipeline.scaling.standard_scale(current_df, cols)
                     save_to_history(current_df)
@@ -623,6 +645,7 @@ def main():
         st.sidebar.header("✂️ Row Management")
 
         with st.sidebar.expander("🔍 Global Search"):
+            st.caption("Search for specific values across the entire dataset.")
             search_query = st.text_input("Search term (all columns)", key="global_search_input")
             case_sensitive = st.checkbox("Case sensitive", value=False, key="global_search_case")
             
@@ -642,6 +665,7 @@ def main():
                     st.warning("Please enter a search term.")
 
         with st.sidebar.expander("📊 Filter Rows"):
+            st.caption("Keep only rows that match specific criteria.")
             if st.checkbox("Apply Row Filter", key="filter_rows_check"):
                 filter_col = st.selectbox("Select column to filter", current_df.columns.tolist(), key="filter_col_select")
                 if filter_col:
@@ -673,6 +697,7 @@ def main():
                             st.error(f"Error applying filter: {e}")
 
         with st.sidebar.expander("🗑️ Drop Rows"):
+            st.caption("Remove rows that match specific criteria.")
             if st.checkbox("Apply Drop Rows", key="drop_rows_check"):
                 drop_col = st.selectbox("Select column to drop rows based on", current_df.columns.tolist(), key="drop_col_select")
                 if drop_col:
@@ -724,6 +749,7 @@ def main():
             st.sidebar.error(f"Recommendation error: {e}")
 
         st.sidebar.header("⬇️ Export")
+        st.sidebar.caption("Download your processed data and a summary report.")
         csv_bytes = pipeline.code_export.dataframe_to_csv_bytes(current_df)
         st.sidebar.download_button("Download Cleaned CSV", data=csv_bytes, file_name="cleaned_dataset.csv", mime="text/csv", key="download_csv_btn")
         
